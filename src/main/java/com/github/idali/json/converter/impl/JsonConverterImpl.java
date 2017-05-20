@@ -6,9 +6,9 @@
 package com.github.idali.json.converter.impl;
 
 import com.github.idali.json.converter.JsonConverter;
+import com.github.idali.json.converter.annotation.JsonAPIField;
 import com.github.idali.json.converter.annotation.JsonAPIId;
 import com.github.idali.json.converter.annotation.JsonAPIIgnor;
-import com.github.idali.json.converter.annotation.JsonAPIRelationship;
 import com.github.idali.json.converter.util.Util;
 import java.io.Serializable;
 import java.lang.reflect.Field;
@@ -22,11 +22,15 @@ import java.util.Map;
 import java.util.Set;
 import javax.json.Json;
 import javax.json.JsonArrayBuilder;
-import javax.json.JsonBuilderFactory;
+//import javax.json.JsonBuilderFactory;
 import javax.json.JsonObject;
 import javax.json.JsonObjectBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.github.idali.json.converter.annotation.JsonAPIManyToOne;
+import com.github.idali.json.converter.annotation.JsonAPIOneToMany;
+import com.github.idali.json.converter.annotation.JsonAPIResource;
+import com.github.idali.json.converter.util.CommonString;
 
 /**
  *
@@ -41,64 +45,56 @@ public class JsonConverterImpl<T extends Object> implements JsonConverter<T>, Se
     private final String DATATYPE_COLLECTION = "java.util.Collection";
     private final String DATATYPE_SET = "java.util.Set";
 
+
     @Override
-    public JsonObject convert(T object, Map<String, ?> map, int status) {
+    public JsonObject convert(T object, Map<String, ?> meta, int status) {
   
-        if (object instanceof List) {
+        if(object == null) {
+            return null;
+        }
+        
+        if (object instanceof List) {                       // If the object is a list of beans, convert list
             List<Object> beans = (List<Object>) object;
-            return convertList(beans, map, status);
+            return convertList(beans, meta, status);
         } else {
-            return convertBean(object, map, status);
+            return convertBean(object, meta, status);       // Convert single bean
         }
     }
 
     @Override
-    public JsonObject convert(int count, Map<String, ?> meta, String entityName) {
-
-        JsonBuilderFactory factory = Json.createBuilderFactory(null);
-        JsonObjectBuilder jsonBuilder = factory.createObjectBuilder();
-        JsonObjectBuilder dataBuilder = Json.createObjectBuilder();
-        dataBuilder.add("type", entityName);
-        dataBuilder.add("count", count);
-
-        jsonBuilder.add("meta", buildMetadata(meta, 1, 200));
-        jsonBuilder.add("data", dataBuilder);
-        return jsonBuilder.build();
-    }
-
-    @Override
     public JsonObject convert(Map<String, ?> meta, List<String> errorMsgs,
-            int status, String errorType, String source) {
+                             int status, String errorType, String source) {
 
-        JsonBuilderFactory factory = Json.createBuilderFactory(null);
-        JsonObjectBuilder jsonBuilder = factory.createObjectBuilder();
-
-        jsonBuilder.add("meta", buildMetadata(meta, 0, status));
+//        JsonBuilderFactory factory = Json.createBuilderFactory(null);
+        JsonObjectBuilder jsonBuilder = Json.createObjectBuilder(); 
+        
+        // Add meta section
+        jsonBuilder.add(CommonString.getInstance().getMeta(), buildMetadata(meta, 0, status));
 
         JsonObjectBuilder sourceBuilder = Json.createObjectBuilder();
-        sourceBuilder.add("point", source);
+        sourceBuilder.add(CommonString.getInstance().getPoint(), source);
         JsonArrayBuilder arrBuilder = Json.createArrayBuilder();
         errorMsgs.stream()
                 .forEach(l -> {
                     JsonObjectBuilder errorBuilder = Json.createObjectBuilder();
-                    errorBuilder.add("detail", l);
-                    errorBuilder.add("source", sourceBuilder);
+                    errorBuilder.add(CommonString.getInstance().getDetail(), l);
+                    errorBuilder.add(CommonString.getInstance().getSource(), sourceBuilder);
                     arrBuilder.add(errorBuilder);
                 });
 
-        jsonBuilder.add("errors", arrBuilder);
+        jsonBuilder.add(CommonString.getInstance().getErrors(), arrBuilder);
         return jsonBuilder.build();
     }
       
-    private JsonObject convertList(List<Object> beans, Map<String, ?> map, int status) {
+    private JsonObject convertList(List<Object> beans, Map<String, ?> meta, int status) {
 
-        JsonBuilderFactory factory = Json.createBuilderFactory(null);
-        JsonObjectBuilder jsonBuilder = factory.createObjectBuilder();
+//        JsonBuilderFactory factory = Json.createBuilderFactory(null);
+        JsonObjectBuilder jsonBuilder = Json.createObjectBuilder();
         JsonObjectBuilder dataBuilder = Json.createObjectBuilder();
         JsonArrayBuilder dataArrBuilder = Json.createArrayBuilder();
 
         if (!beans.isEmpty()) {
-            String type = beans.get(0).getClass().getSimpleName();
+            String type = beans.get(0).getClass().getAnnotation(JsonAPIResource.class).type();
             beans.stream()
                     .forEach(b -> {
                         buildDataBody(b, type, dataBuilder);
@@ -106,18 +102,40 @@ public class JsonConverterImpl<T extends Object> implements JsonConverter<T>, Se
                     });
         }
 
-        jsonBuilder.add("meta", buildMetadata(map, beans.size(), status));
-        jsonBuilder.add("data", dataArrBuilder);
+        jsonBuilder.add(CommonString.getInstance().getMeta(), buildMetadata(meta, beans.size(), status));
+        jsonBuilder.add(CommonString.getInstance().getData(), dataArrBuilder);
+        return jsonBuilder.build();
+    }
+    
+    private JsonObject convertBean(Object object, Map<String, ?> meta, int status) {
+//        JsonBuilderFactory factory = Json.createBuilderFactory(null);
+        JsonObjectBuilder jsonBuilder = Json.createObjectBuilder();
+        JsonObjectBuilder dataBuilder = Json.createObjectBuilder();
+
+        if(object != null) {
+            String type = object.getClass().getAnnotation(JsonAPIResource.class).type(); 
+            buildDataBody(object, type, dataBuilder);
+        } 
+          
+        jsonBuilder.add(CommonString.getInstance().getMeta(), buildMetadata(meta, 1, status));
+        jsonBuilder.add(CommonString.getInstance().getData(), dataBuilder);
         return jsonBuilder.build();
     }
 
+    /**
+     * Build data section
+     * 
+     * @param object
+     * @param type
+     * @param dataBuilder 
+     */
     private void buildDataBody(Object object, String type, JsonObjectBuilder dataBuilder) {
 
         JsonObjectBuilder attBuilder = Json.createObjectBuilder();
         JsonObjectBuilder relBuilder = Json.createObjectBuilder();
 
-        dataBuilder.add("type", type);
-        dataBuilder.add("id", getIdField(object));
+        dataBuilder.add(CommonString.getInstance().getType(), type);
+        dataBuilder.add(CommonString.getInstance().getId(), getIdField(object));
 
         Field[] fields = object.getClass().getDeclaredFields();
         Arrays.stream(fields)
@@ -125,44 +143,31 @@ public class JsonConverterImpl<T extends Object> implements JsonConverter<T>, Se
                 .forEach(f -> {
                     Object fieldValue = getFieldValue(f, object);
                     if (fieldValue != null) {
-                        if (f.isAnnotationPresent(JsonAPIRelationship.class)) {
-                            switch (f.getType().getName()) {
-                                case DATATYPE_LIST:
-                                    buildOneToManyRelationship(f, fieldValue, relBuilder);
-                                    break;
+                        if (f.isAnnotationPresent(JsonAPIManyToOne.class)) {
+                            switch (f.getType().getName()) { 
                                 case DATATYPE_COLLECTION: 
-                                    buildOneToManyRelationship(f, new ArrayList((Collection) fieldValue), relBuilder);
+                                    buildManyToOneRelationship(f, new ArrayList((Collection) fieldValue), relBuilder);
                                     break; 
                                 case DATATYPE_SET: 
-                                    buildOneToManyRelationship(f, new ArrayList((Set) fieldValue), relBuilder);
+                                    buildManyToOneRelationship(f, new ArrayList((Set) fieldValue), relBuilder);
                                     break;
                                 default:
                                     buildManyToOneRelationship(f, fieldValue, relBuilder);
                                     break;
                             }
+                        } else if(f.isAnnotationPresent((JsonAPIOneToMany.class))) {
+                            buildOneToManyRelationship(f, fieldValue, relBuilder);
+                        } else if(f.isAnnotationPresent(JsonAPIField.class)) {
+                            addAttributes(attBuilder, fieldValue, f.getAnnotation(JsonAPIField.class).name());
                         } else {
-                            addAttributes(attBuilder, fieldValue, f.getName());
+                            if(!f.isAnnotationPresent(JsonAPIId.class)) {
+                                addAttributes(attBuilder, fieldValue, f.getName());
+                            } 
                         }
                     }
-                });
-
-        dataBuilder.add("attributes", attBuilder);
-        dataBuilder.add("relationships", relBuilder);
-    }
-
-    private JsonObject convertBean(Object object, Map<String, ?> map, int status) {
-        JsonBuilderFactory factory = Json.createBuilderFactory(null);
-        JsonObjectBuilder jsonBuilder = factory.createObjectBuilder();
-        JsonObjectBuilder dataBuilder = Json.createObjectBuilder();
-
-        if(object != null) {
-            String type = object.getClass().getSimpleName(); 
-            buildDataBody(object, type, dataBuilder);
-        } 
-          
-        jsonBuilder.add("meta", buildMetadata(map, 1, status));
-        jsonBuilder.add("data", dataBuilder);
-        return jsonBuilder.build();
+                }); 
+        dataBuilder.add(CommonString.getInstance().getAttributes(), attBuilder);
+        dataBuilder.add(CommonString.getInstance().getRelationship(), relBuilder);
     }
  
     private void buildOneToManyRelationship(Field field, Object bean, JsonObjectBuilder relBuilder) {
@@ -173,29 +178,28 @@ public class JsonConverterImpl<T extends Object> implements JsonConverter<T>, Se
 
         List<Object> subBeans = (List<Object>) bean;
         if (subBeans != null && !subBeans.isEmpty()) {
-//            String fieldName = field.getAnnotation(DinaOneToMany.class).name();
-//            String type = field.getAnnotation(DinaOneToMany.class).type(); 
-            String type = field.getName();
+            String fieldName = field.getAnnotation(JsonAPIOneToMany.class).name();
+            String type = field.getAnnotation(JsonAPIOneToMany.class).type(); 
             subBeans.stream()
                     .forEach(b -> {
-                        subDataBuilder.add("type", type);
-                        subDataBuilder.add("id", getIdField(b));
+                        subDataBuilder.add(CommonString.getInstance().getType(), type);
+                        subDataBuilder.add(CommonString.getInstance().getId(), getIdField(b));
                         subDataArrBuilder.add(subDataBuilder);
                     });
-            subBuilder.add("data", subDataArrBuilder);
-            relBuilder.add(type, subBuilder);
+            subBuilder.add(CommonString.getInstance().getData(), subDataArrBuilder);
+            relBuilder.add(fieldName, subBuilder);
         }
     }
 
     private void buildManyToOneRelationship(Field field, Object bean, JsonObjectBuilder relBuilder) {
         JsonObjectBuilder subBuilder = Json.createObjectBuilder();
         if (bean != null) {
-//            String fieldName = field.getAnnotation(DinaManyToOne.class).name();
-//            String type = field.getAnnotation(DinaManyToOne.class).type(); 
+            String fieldName = field.getAnnotation(JsonAPIManyToOne.class).name();
+            String type = field.getAnnotation(JsonAPIManyToOne.class).type(); 
             JsonObjectBuilder subDataBuilder = Json.createObjectBuilder();
-            subDataBuilder.add("type", field.getName());
-            subDataBuilder.add("id", getIdField(bean));
-            subBuilder.add("data", subDataBuilder);
+            subDataBuilder.add(CommonString.getInstance().getType(), type);
+            subDataBuilder.add(CommonString.getInstance().getId(), getIdField(bean));
+            subBuilder.add(CommonString.getInstance().getData(), subDataBuilder);
             relBuilder.add(field.getName(), subBuilder);
         }
     }
@@ -218,6 +222,8 @@ public class JsonConverterImpl<T extends Object> implements JsonConverter<T>, Se
             attBuilder.add(key, (Double) value);
         } else if (value instanceof Float) {
             attBuilder.add(key, (Float) value);
+        } else if (value instanceof Long ) {
+            attBuilder.add(key, (Long) value);
         } else {
             attBuilder.add(key, (String) value);
         }
@@ -226,10 +232,10 @@ public class JsonConverterImpl<T extends Object> implements JsonConverter<T>, Se
     private int getIdField(Object bean) {
         try {
             Field field = Arrays.asList(bean.getClass().getDeclaredFields())
-                    .stream()
-                    .filter(f -> f.isAnnotationPresent(JsonAPIId.class))
-                    .findAny()
-                    .get();
+                                .stream()
+                                .filter(f -> f.isAnnotationPresent(JsonAPIId.class))
+                                .findAny()
+                                .get();
 
             field.setAccessible(true);
             return (Integer) field.get(bean);
@@ -238,9 +244,16 @@ public class JsonConverterImpl<T extends Object> implements JsonConverter<T>, Se
         }
     }
 
-    private JsonObjectBuilder buildMetadata(Map<String, ?> map, int numOfResult, int status) {
+    /**
+     * Build metadata.  
+     * @param map           - key value map.  Value can be int, String and List
+     * @param numOfResult   - number of the result to return
+     * @param status        - status code
+     * @return              - json object
+     */
+    private JsonObjectBuilder buildMetadata(Map<String, ?> meta, int numOfResult, int status) {
         JsonObjectBuilder metaBuilder = Json.createObjectBuilder();
-        map.entrySet().stream()
+        meta.entrySet().stream()
                 .forEach(m -> {
                     Object value = m.getValue();
                     if (value instanceof java.util.List) {
@@ -257,8 +270,8 @@ public class JsonConverterImpl<T extends Object> implements JsonConverter<T>, Se
                         metaBuilder.add(m.getKey(), (String) value);
                     }
                 });
-        metaBuilder.add("statusCode", status);
-        metaBuilder.add("resultCount", numOfResult);
+        metaBuilder.add(CommonString.getInstance().getStatusCode(), status);
+        metaBuilder.add(CommonString.getInstance().getResultCount(), numOfResult);
         return metaBuilder;
     }
 

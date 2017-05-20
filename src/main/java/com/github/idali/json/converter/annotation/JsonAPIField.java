@@ -13,9 +13,12 @@ import java.lang.annotation.Target;
 /**
  *
  * @author idali
+ * 
+ * Use this annotation to override the default field name in order to compliance with 
+ * JsonAPI standard used by front end
  */
 @Retention(RetentionPolicy.RUNTIME)
-@Target(ElementType.TYPE) //on class level
-public @interface JsonAPIType {
-    
+@Target(ElementType.FIELD) //on class level
+public @interface JsonAPIField {
+    String name();
 }

@@ -14,10 +14,10 @@ import java.lang.annotation.Target;
  *
  * @author idali
  * 
- * To set the field which will be ignored by json response
+ * To identify type of entity on resource
  */
 @Retention(RetentionPolicy.RUNTIME)
-@Target(ElementType.FIELD) //on field level
-public @interface JsonAPIIgnor {
-    
+@Target(ElementType.TYPE) //on class level
+public @interface JsonAPIResource {
+    String type();
 }

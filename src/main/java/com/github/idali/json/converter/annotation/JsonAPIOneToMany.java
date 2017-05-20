@@ -14,10 +14,11 @@ import java.lang.annotation.Target;
  *
  * @author idali
  * 
- * To set the field which will be ignored by json response
+ * To identify one to many relationship on resource
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.FIELD) //on field level
-public @interface JsonAPIIgnor {
-    
+public @interface JsonAPIOneToMany {
+    String name();
+    String type();
 }

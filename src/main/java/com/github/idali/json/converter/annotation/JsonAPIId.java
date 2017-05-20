@@ -13,9 +13,11 @@ import java.lang.annotation.Target;
 /**
  *
  * @author idali
+ * 
+ * Identify id field in resource 
  */
 @Retention(RetentionPolicy.RUNTIME)
-@Target(ElementType.FIELD) //on class level
+@Target(ElementType.FIELD) //on field level
 public @interface JsonAPIId {
     
 }

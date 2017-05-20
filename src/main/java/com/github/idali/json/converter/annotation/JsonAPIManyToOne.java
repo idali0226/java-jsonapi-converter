@@ -13,9 +13,12 @@ import java.lang.annotation.Target;
 /**
  *
  * @author idali
+ * 
+ * To identify a many to one relationship on resource
  */
 @Retention(RetentionPolicy.RUNTIME)
-@Target(ElementType.FIELD) //on class level
-public @interface JsonAPIRelationship {
-    
+@Target(ElementType.FIELD) //on field level
+public @interface JsonAPIManyToOne {
+    String name(); 
+    String type();
 }
