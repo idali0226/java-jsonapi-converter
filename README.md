@@ -59,6 +59,8 @@ The java-jsonapi-converter has two methods:
 
 # Documentation
 
-	http://jsonapi.org/
+- [Json API reference](http://jsonapi.org/)
+
+	
 
 
