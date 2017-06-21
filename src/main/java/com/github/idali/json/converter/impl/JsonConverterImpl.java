@@ -143,20 +143,20 @@ public class JsonConverterImpl<T extends Object> implements JsonConverter<T>, Se
                 .forEach(f -> {
                     Object fieldValue = getFieldValue(f, object);
                     if (fieldValue != null) {
-                        if (f.isAnnotationPresent(JsonAPIManyToOne.class)) {
+                        if (f.isAnnotationPresent(JsonAPIOneToMany.class)) {
                             switch (f.getType().getName()) { 
                                 case DATATYPE_COLLECTION: 
-                                    buildManyToOneRelationship(f, new ArrayList((Collection) fieldValue), relBuilder);
+                                    buildOneToManyRelationship(f, new ArrayList((Collection) fieldValue), relBuilder);
                                     break; 
                                 case DATATYPE_SET: 
-                                    buildManyToOneRelationship(f, new ArrayList((Set) fieldValue), relBuilder);
+                                    buildOneToManyRelationship(f, new ArrayList((Set) fieldValue), relBuilder);
                                     break;
                                 default:
-                                    buildManyToOneRelationship(f, fieldValue, relBuilder);
+                                    buildOneToManyRelationship(f, fieldValue, relBuilder);
                                     break;
                             }
-                        } else if(f.isAnnotationPresent((JsonAPIOneToMany.class))) {
-                            buildOneToManyRelationship(f, fieldValue, relBuilder);
+                        } else if(f.isAnnotationPresent((JsonAPIManyToOne.class))) {
+                            buildManyToOneRelationship(f, fieldValue, relBuilder);
                         } else if(f.isAnnotationPresent(JsonAPIField.class)) {
                             addAttributes(attBuilder, fieldValue, f.getAnnotation(JsonAPIField.class).name());
                         } else {
